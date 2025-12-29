@@ -126,7 +126,6 @@ function runPythonScript(loc, param, timedKill = false) {
             timeout = setTimeout(() => {
                 if (!isResolved) {
                     isResolved = true
-                    console.log(`Process for parameter ${param} timed out after 10 minutes, killing process...`)
                     
                     // Kill the process and all its children
                     pythonProcess.kill('SIGKILL')
@@ -138,21 +137,17 @@ function runPythonScript(loc, param, timedKill = false) {
 
         // Capture standard output
         pythonProcess.stdout.on('data', (data) => {
-            console.log("got data", data.toString())
             output += data.toString()
             // console.log(data.toString())
         })
 
         // Capture standard error
         pythonProcess.stderr.on('data', (data) => {
-            console.log("got error")
-            console.log("error: ", data.toString())
             errorOutput += data.toString()
         })
 
         // Handle process exit
         pythonProcess.on('close', (code) => {
-            console.log("got close")
             if (!isResolved) {
                 if(timedKill){
                     clearTimeout(timeout)
@@ -169,7 +164,6 @@ function runPythonScript(loc, param, timedKill = false) {
 
         // Handle errors when starting the process
         pythonProcess.on('error', (err) => {
-            console.log("got error2")
             if (!isResolved) {
                 if(timedKill){
                     clearTimeout(timeout)
@@ -181,9 +175,10 @@ function runPythonScript(loc, param, timedKill = false) {
     })
 }
 
-config({path: './ai_training/.env'})
+config({path: './.env'})
 const token = process.env.BOT_TOKEN
 const trgetChatId = process.env.CHAT_ID
+let isHyperparameterTuning = false
 let infiniteTraining = false
 if (!token) {
     throw new Error("No BOT_TOKEN env variable set")
@@ -193,7 +188,7 @@ if (!trgetChatId) {
 }
 
 const bot = new TelegramBot(token, {polling: true})
-const studios = await readJsonFile("./ai_training/studios.json")
+const studios = await readJsonFile("./studios.json")
 
 console.log("Bot started")
 bot.on('message', async (msg) => {
@@ -204,7 +199,7 @@ bot.on('message', async (msg) => {
 
     if(text === "list"){
         // Lists all availible studios
-        const studios = await readJsonFile("./ai_training/studios.json")
+        const studios = await readJsonFile("./studios.json")
         textToSend = "Available Studios:\n" + Object.keys(studios).map(s => `- ${s} (${studios[s].user})`).join("\n")
         bot.sendMessage(chatId, textToSend)
     } else if(text.toLowerCase()?.startsWith("stop single")){
@@ -218,7 +213,7 @@ bot.on('message', async (msg) => {
         
         bot.sendMessage(chatId, `Stopping studio: ${studios[studioName].user}`).then(sentMsg => {lastMessageId = sentMsg.message_id})
         const params = { action: "stop_single", credentials: JSON.stringify(studios[studioName])}
-        const result = await runPythonScript("./ai_training/studioManager.py", params)
+        const result = await runPythonScript("./studioManager.py", params)
         if(result.includes("not running")){
             bot.editMessageText(`Studio ${studios[studioName].user} is already stopped`, {chat_id: chatId, message_id: lastMessageId})
         } else if (!result.includes("Error") &&  result.includes("Success")){
@@ -232,7 +227,7 @@ bot.on('message', async (msg) => {
         let i = 1
         for(let name of Object.keys(studios)){
             const params = { action: "stop_single", credentials: JSON.stringify(studios[name])}
-            const result = await runPythonScript("./ai_training/studioManager.py", params)
+            const result = await runPythonScript("./studioManager.py", params)
             bot.editMessageText(`Studio ${studios[name].user} stopped`, {chat_id: chatId, message_id: lastMessageId})
         }
         bot.sendMessage(chatId, `All studios stopped.`)
@@ -246,7 +241,7 @@ bot.on('message', async (msg) => {
             return
         }
         const params = { action: "status_single", credentials: JSON.stringify(studios[studioName])}
-        const result = await runPythonScript("./ai_training/studioManager.py", params)
+        const result = await runPythonScript("./studioManager.py", params)
         if(result.includes("Error")){
             bot.sendMessage(chatId, `Error getting status for ${studios[studioName].user}: ${result}`)
         } else {
@@ -263,7 +258,7 @@ bot.on('message', async (msg) => {
         let i = 1
         for(let name of Object.keys(studios)){
             const params = { action: "status_single", credentials: JSON.stringify(studios[name])}
-            const result = await runPythonScript("./ai_training/studioManager.py", params)
+            const result = await runPythonScript("./studioManager.py", params)
             if(result.includes("Error")){ error.push(name) }
             else if(result.includes("Running")){ running.push(name) }
             else { noRunning.push(`${name} (${studios[name].user})`) }
@@ -274,9 +269,11 @@ bot.on('message', async (msg) => {
         bot.editMessageText(`All studios status:\nNot running:\n   ${noRunning.join("\n   ")}\nRunning:\n   ${running.join("\n   ")}\nError:\n   ${error.join("\n   ")}`, {chat_id: chatId, message_id: lastMessageId})
     } else if (text.toLowerCase()?.startsWith("train_single")){
         let forceNewRun = false
+        let forcedConf = undefined
         if(text.toLowerCase().includes("force_new_run")){ forceNewRun = true }
+        if(text.toLowerCase().includes("force_config")){ forcedConf = JSON.parse( text.split("force_config", 2)[1]?.trim() ?? "") }
 
-        // gets status for a single studop
+        // gets status for a single studio
         const parts = text.split(" ")
         let studioName = parts[1]
         if(!studioName || Object.keys(studios).indexOf(studioName) === -1){
@@ -284,11 +281,15 @@ bot.on('message', async (msg) => {
             return
         }
         const params = { action: "status_single", credentials: JSON.stringify(studios[studioName]) }
-        const result = await runPythonScript("./ai_training/studioManager.py", params)
+        const result = await runPythonScript("./studioManager.py", params)
 
         if(result.includes("Stopped")){
-            const params = { action: "train_single", credentials: JSON.stringify(studios[studioName]), forceNewRun: forceNewRun}
-            runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+            const _params = { action: "train_single", credentials: JSON.stringify(studios[studioName]), forceNewRun: forceNewRun}
+            if(forcedConf) {
+                _params.forceConfig = true
+                _params.config = JSON.stringify(forcedConf)
+            }
+            runPythonScript("./studioManager.py", _params, true) // Not awaiting it, with timed kill
             await new Promise(resolve => setTimeout(resolve, 1000))
             bot.sendMessage(chatId, `Starting studio ${studios[studioName].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
         } else {
@@ -305,7 +306,7 @@ bot.on('message', async (msg) => {
             let i = 1
             for(let name of Object.keys(studios)){
                 const params = { action: "train_single", credentials: JSON.stringify(studios[name]), forceNewRun: forceNewRun}
-                runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+                runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
                 await new Promise(resolve => setTimeout(resolve, 1000))
                 bot.sendMessage(chatId, `Starting studio ${studios[name].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
                 i++
@@ -328,7 +329,7 @@ bot.on('message', async (msg) => {
             return
         }
         const params = { action: "training_stat", credentials: JSON.stringify(studios[studioName]), botToken: token, chatId: chatId }
-        await runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+        await runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
     } else if(text.toLowerCase().startsWith("upload_all_results")){
         const parts = text.split(" ")
         let studioName = parts[1]
@@ -337,15 +338,21 @@ bot.on('message', async (msg) => {
             return
         }
         const params = { action: "upload_results", credentials: JSON.stringify(studios[studioName]), botToken: token, chatId: chatId }
-        await runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+        await runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
     } else if(text.toLowerCase().startsWith("tune_grid_search")){
+        if(isHyperparameterTuning){
+            bot.sendMessage(chatId, "Already tuning parameters. Can not tun multiple grid search instances for now.")
+        } else {
+            isHyperparameterTuning = true
+        }
+
         bot.sendMessage(chatId, "Starting to tune parameters")
 
-        if(!await existsSync("./ai_training/tune_params.json")){
+        if(!await existsSync("./tune_params.json")){
             bot.sendMessage(chatId, "tune_params.json file not found")
         }
 
-        let tuningParams = await readJsonFile("./ai_training/tune_params.json")
+        let tuningParams = await readJsonFile("./tune_params.json")
 
         // When using this approach for tuning, continue_run has to be always true
         if (!tuningParams.continue_run) {
@@ -370,7 +377,7 @@ bot.on('message', async (msg) => {
             !tuningParams.tuning.assigned ||
             !tuningParams.tuning.finished
         ){
-            const availibleStudios = Object.keys(await readJsonFile("./ai_training/studios.json"))
+            const availibleStudios = Object.keys(await readJsonFile("./studios.json"))
             tuningParams.tuning.availibleStudios = availibleStudios
 
             // Get an array of key paths that will be overriden with tuing parameters (in "paths" key) 
@@ -391,7 +398,7 @@ bot.on('message', async (msg) => {
             // Assigned to every studio
             tuningParams.tuning.finished = []
             
-            await saveJSONFile("./ai_training/tune_params.json", tuningParams)
+            await saveJSONFile("./tune_params.json", tuningParams)
         }
 
 
@@ -405,10 +412,10 @@ bot.on('message', async (msg) => {
             for(let i = 0; i < Object.keys(studios).length; i++){
                 try{
 
-                    console.log("new studio:================================================")
                     let name = Object.keys(studios)[i]
+                    console.log("===== new studio =====\nName:", name)
                     // Update the tuning parameters
-                    tuningParams =  await readJsonFile("./ai_training/tune_params.json")
+                    tuningParams =  await readJsonFile("./tune_params.json")
     
                     // Check to see if this studio has an assigned combination. If already assigned, run it.
                     if(tuningParams.tuning.assigned[name].length != 0) {
@@ -425,7 +432,7 @@ bot.on('message', async (msg) => {
                             config: JSON.stringify(config)
                         }
                         
-                        const result = await runPythonScript("./ai_training/studioManager.py", params, true) 
+                        const result = await runPythonScript("./studioManager.py", params, true) 
     
                         if(result.includes("false: unfinished duplicate found")){
                             console.log(name, "continuing prev run")
@@ -434,7 +441,7 @@ bot.on('message', async (msg) => {
                                 action: "train_single", 
                                 credentials: JSON.stringify(studios[name]), 
                             }
-                            runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+                            runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
                             await new Promise(resolve => setTimeout(resolve, 1000))
                             bot.sendMessage(chatId, `Starting studio ${studios[name].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
                         } else if(result.includes("true: finished duplicate found")) {
@@ -442,7 +449,7 @@ bot.on('message', async (msg) => {
                             // Training has finished, remove this combo from assigned and move it to finished
                             tuningParams.tuning.finished.push(tuningParams.tuning.assigned[name][0])
                             tuningParams.tuning.assigned[name] = []
-                            await saveJSONFile("./ai_training/tune_params.json", tuningParams)
+                            await saveJSONFile("./tune_params.json", tuningParams)
     
                             // Assign a new combo
                             i = i -1
@@ -471,7 +478,7 @@ bot.on('message', async (msg) => {
                                 config: JSON.stringify(config)
                             }
                             
-                            const result = await runPythonScript("./ai_training/studioManager.py", params, true) 
+                            const result = await runPythonScript("./studioManager.py", params, true) 
                             
                             if(result.includes("true: finished duplicate found")){
                                 // Won't reach here. Added here as a failsafe
@@ -480,7 +487,7 @@ bot.on('message', async (msg) => {
                                 const _combination = tuningParams.tuning.unassigned[_idx]
                                 if (_idx != -1) {tuningParams.tuning.unassigned.splice(_idx, 1)}
                                 tuningParams.tuning.finished.push(_combination)
-                                await saveJSONFile("./ai_training/tune_params.json", tuningParams)
+                                await saveJSONFile("./tune_params.json", tuningParams)
                                 
                                 // Assign a new combo
                                 i = i -1
@@ -493,7 +500,7 @@ bot.on('message', async (msg) => {
                                     credentials: JSON.stringify(studios[name]), 
                                     forceNewRun: forceNewRun
                                 }
-                                runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+                                runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
                                 await new Promise(resolve => setTimeout(resolve, 1000))
                                 bot.sendMessage(chatId, `Starting studio ${studios[name].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
                                 break
@@ -502,7 +509,7 @@ bot.on('message', async (msg) => {
                                 // Start a fresh run
                                 tuningParams.tuning.unassigned.splice(_idxMain, 1)
                                 tuningParams.tuning.assigned[name] = [_combination]
-                                await saveJSONFile("./ai_training/tune_params.json", tuningParams)
+                                await saveJSONFile("./tune_params.json", tuningParams)
     
                                 // Run with --forceconfig flag
                                 const params = { 
@@ -512,7 +519,7 @@ bot.on('message', async (msg) => {
                                     config: JSON.stringify(config)
                                 }
                                 
-                                runPythonScript("./ai_training/studioManager.py", params, true) // Not awaiting it, with timed kill
+                                runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
                                 await new Promise(resolve => setTimeout(resolve, 1000))
                                 bot.sendMessage(chatId, `Starting studio ${studios[name].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
                                 break
