@@ -318,6 +318,41 @@ bot.on('message', async (msg) => {
 
             await new Promise(resolve => setTimeout(resolve, 4 * 60 * 60 * 1000)) // A 4 hour delay
         }
+    } else if (text.toLowerCase()?.startsWith("train_multiple")){
+        let forceNewRun = false
+        if(text.toLowerCase().includes("force_new_run")){ 
+            forceNewRun = true
+            text = text.replace("force_new_run", "")
+        }
+
+        text = text.replace("train_multiple", "")
+        let _targetStudios = text.split(" ").filter(a => a!="")
+
+        for (let _studio of _targetStudios){
+            if(!Object.keys(studios).includes(_studio)){
+                bot.sendMessage(chatId, `Unknow studio ${_studio}`)
+                return
+            }
+        }
+
+        infiniteTraining = true
+        while(infiniteTraining){
+            bot.sendMessage(chatId, `Starting training for all studios (0/${Object.keys(studios).length}) ...`).then(sentMsg => {lastMessageId = sentMsg.message_id})
+            let i = 1
+            for(let name of _targetStudios){
+                const params = { action: "train_single", credentials: JSON.stringify(studios[name]), forceNewRun: forceNewRun}
+                runPythonScript("./studioManager.py", params, true) // Not awaiting it, with timed kill
+                await new Promise(resolve => setTimeout(resolve, 1000))
+                bot.sendMessage(chatId, `Starting studio ${studios[name].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
+                i++
+                await new Promise(resolve => setTimeout(resolve, 5 * 60 * 1000))
+            }
+
+            forceNewRun = false // Only for the first run
+            bot.sendMessage(chatId, `All studios started for training. Waiting 4 hours before next training round...`)
+
+            await new Promise(resolve => setTimeout(resolve, 4 * 60 * 60 * 1000)) // A 4 hour delay
+        }
     } else if(text.toLowerCase() === "stop_training"){
         infiniteTraining = false
         bot.sendMessage(chatId, "Infinite training loop stopped. Training will not continue after active sessions are done.")
@@ -556,6 +591,7 @@ bot.on('message', async (msg) => {
         "- <code>status_all</code>: <i>Gets the status of all studios </i>\n" +
         "- <code>train_all</code>: <i>Starts training for all studios (with 5 minutes delay between each start)  </i> \n" +
         "- <code>train_all force_new_run</code>: <i>Starts training for all studios with a forced new run in each server </i> \n" +
+        "- <code>train_multiple studio_1 studio_2 ... force_new_run</code>: <i>Runs multiple sudios in  aloop, force_new_run is optional </i> \n" +
         "- <code>train_single studio_name optional:force_new_run</code>: <i>Starts training a specific studio </i> \n" +
         "- <code>stop_training</code>: <i>Stops further initiations of training </i> \n" +
         "- <code>training_stat studio_name</code> : <i>Gets the training status of the specified studio </i>\n" +
