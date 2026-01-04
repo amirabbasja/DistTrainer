@@ -325,8 +325,8 @@ bot.on('message', async (msg) => {
             text = text.replace("force_new_run", "")
         }
 
-        text = text.replace("train_multiple", "")
-        let _targetStudios = text.split(" ").filter(a => a!="")
+        let _text = text.replace("train_multiple", "")
+        let _targetStudios = _text.split(" ").filter(a => a!="")
 
         for (let _studio of _targetStudios){
             if(!Object.keys(studios).includes(_studio)){
@@ -337,7 +337,7 @@ bot.on('message', async (msg) => {
 
         infiniteTraining = true
         while(infiniteTraining){
-            bot.sendMessage(chatId, `Starting training for all studios (0/${Object.keys(studios).length}) ...`).then(sentMsg => {lastMessageId = sentMsg.message_id})
+            bot.sendMessage(chatId, `Starting training for all studios (0/${_targetStudios.length}) ...`).then(sentMsg => {lastMessageId = sentMsg.message_id})
             let i = 1
             for(let name of _targetStudios){
                 const params = { action: "train_single", credentials: JSON.stringify(studios[name]), forceNewRun: forceNewRun}
