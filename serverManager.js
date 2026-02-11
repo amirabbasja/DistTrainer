@@ -283,7 +283,7 @@ bot.on('message', async (msg) => {
         const params = { action: "status_single", credentials: JSON.stringify(studios[studioName]) }
         const result = await runPythonScript("./studioManager.py", params)
 
-        if(result.includes("Stopped")){
+        // if(result.includes("Stopped")){
             const _params = { action: "train_single", credentials: JSON.stringify(studios[studioName]), forceNewRun: forceNewRun}
             if(forcedConf) {
                 _params.forceConfig = true
@@ -292,10 +292,10 @@ bot.on('message', async (msg) => {
             runPythonScript("./studioManager.py", _params, true) // Not awaiting it, with timed kill
             await new Promise(resolve => setTimeout(resolve, 1000))
             bot.sendMessage(chatId, `Starting studio ${studios[studioName].user} for training `).then(sentMsg => {lastMessageId = sentMsg.message_id})
-        } else {
-            console.log(result)
-            bot.sendMessage(chatId, `Studio ${studios[studioName].user} is not Stopped. Needs to be stopped to start training `)
-        }
+        // } else {
+        //     console.log(result)
+        //     bot.sendMessage(chatId, `Studio ${studios[studioName].user} is not Stopped. Needs to be stopped to start training `)
+        // }
     } else if (text.toLowerCase()?.startsWith("train_all")){
         let forceNewRun = false
         if(text.toLowerCase().includes("force_new_run")){ forceNewRun = true }
@@ -319,14 +319,15 @@ bot.on('message', async (msg) => {
             await new Promise(resolve => setTimeout(resolve, 4 * 60 * 60 * 1000)) // A 4 hour delay
         }
     } else if (text.toLowerCase()?.startsWith("train_multiple")){
+        let _txt = text
         let forceNewRun = false
-        if(text.toLowerCase().includes("force_new_run")){ 
+        if(_txt.toLowerCase().includes("force_new_run")){ 
             forceNewRun = true
-            text = text.replace("force_new_run", "")
+            _txt = _txt.replace("force_new_run", "")
         }
 
-        let _text = text.replace("train_multiple", "")
-        let _targetStudios = _text.split(" ").filter(a => a!="")
+        _txt = _txt.replace("train_multiple", "")
+        let _targetStudios = _txt.split(" ").filter(a => a!="")
 
         for (let _studio of _targetStudios){
             if(!Object.keys(studios).includes(_studio)){
@@ -593,6 +594,7 @@ bot.on('message', async (msg) => {
         "- <code>train_all force_new_run</code>: <i>Starts training for all studios with a forced new run in each server </i> \n" +
         "- <code>train_multiple studio_1 studio_2 ... force_new_run</code>: <i>Runs multiple sudios in  aloop, force_new_run is optional </i> \n" +
         "- <code>train_single studio_name optional:force_new_run</code>: <i>Starts training a specific studio </i> \n" +
+        "- <code>train_single studio_name optional:force_config {config}</code>: <i>Starts training a specific studio, forcing a specific configuration </i> \n" +
         "- <code>stop_training</code>: <i>Stops further initiations of training </i> \n" +
         "- <code>training_stat studio_name</code> : <i>Gets the training status of the specified studio </i>\n" +
         "- <code>upload_all_results studio_name</code> : <i>Uploads all results from a specific studio in separate zip files </i>\n" +
