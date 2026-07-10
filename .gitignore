@@ -1,3 +1,6 @@
 .env
 studios.json
 tune_params.json
+node_modules/
+.vscode/
+__pycache__/

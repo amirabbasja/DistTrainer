@@ -9,7 +9,7 @@ Dist trainer is a repository written in javascript (Empowered by Node.js) and Py
 
 ## How to install
 
-1. Have a (or multiple) HPCs to train on.
+1. Have a HPC(s) to train on.
 
 2. Install Python and Node.js on the machine that is for driving the training process on other servers.
 
@@ -28,19 +28,35 @@ The code can be used in two ways, 1. To run multiple scripts on multiple servers
 * Running using telegram:
 
     ```
-        node serverManager.js
+        node serverManager.js --telegram
     ```
 
 * Running using CLI:
 
+    `node serverManager.js --cli <command>`
+
     Some examples:
 
     ```
-        node serverManager.js list
-        node serverManager.js status studio_name
-        node serverManager.js train_single my_studio
-        node serverManager.js train_all force_new_run
-        node serverManager.js stop_all
+        node serverManager.js --cli list
+        node serverManager.js --cli status studio_name
+        node serverManager.js --cli train_single my_studio
+        node serverManager.js --cli train_all force_new_run
+        node serverManager.js --cli stop_all
+    ```
+
+* If you want to use lightning ai, configuration for your studio(s) should reside in `studios.json` with following format:
+    ```
+    {
+        "studio_1": {
+            "user": "<userName>",
+            "apiKey": "<apiKey>",
+            "userID": "<userID>",
+            "teamspaceName": "<lightning ai teamspace name>",
+            "studioName": "<the studio you want to run>",
+            "commandToRun": "<example: python /teamspace/studios/this_studio/run.py>"
+        },
+    }
     ```
 
 ### Running multiple scripts on multiple servers

@@ -218,7 +218,7 @@ async function handleListCommand(sender) {
 
 async function handleStopSingleCommand(sender, studioName) {
     const params = { 
-        action: "stop", 
+        action: "stop_single", 
         credentials: JSON.stringify(studios[studioName])
     }
     
@@ -234,7 +234,7 @@ async function handleStopAllCommand(sender) {
     await sender.sendMessage(`Stopping all studios...`)
     for(let i = 0; i < Object.keys(studios).length; i++){
         const params = { 
-            action: "stop", 
+            action: "stop_single", 
             credentials: JSON.stringify(studios[Object.keys(studios)[i]])
         }
         
@@ -249,7 +249,7 @@ async function handleStopAllCommand(sender) {
 
 async function handleStatusCommand(sender, studioName) {
     const params = { 
-        action: "status", 
+        action: "status_single", 
         credentials: JSON.stringify(studios[studioName]) 
     }
     
@@ -264,7 +264,7 @@ async function handleStatusCommand(sender, studioName) {
 async function handleStatusAllCommand(sender) {
     for(let i = 0; i < Object.keys(studios).length; i++){
         const params = { 
-            action: "status", 
+            action: "status_single", 
             credentials: JSON.stringify(studios[Object.keys(studios)[i]])
         }
         
@@ -285,24 +285,46 @@ async function handleTrainSingleCommand(sender, parts, text) {
         forceConfig = text.split("force_config")[1].trim()
     }
 
-    const params = forceConfig 
-        ? { 
-            action: "train_single", 
-            credentials: JSON.stringify(studios[parts[1]]), 
-            forceConfig: true,
-            config: forceConfig
-        }
-        : { 
-            action: "train_single", 
-            credentials: JSON.stringify(studios[parts[1]]), 
-            forceNewRun: forceNewRun
+    let limit = 1
+    if(parts.includes("forever")){
+        limit = Infinity
+    }
+
+    let i = 0
+    while(i < limit){
+        
+        if(parts.includes("clean_start")) {
+            // Clean start, stop the studio first
+            const stopParams = { 
+                action: "stop_single", 
+                credentials: JSON.stringify(studios[parts[1]])
+            }
+            await runPythonScript("./studioManager.py", stopParams, true)
         }
 
-    runPythonScript("./studioManager.py", params, true)
-        .then((result) => sender.sendMessage(`Started training ${parts[1]}:\n${result}`))
-        .catch((error) => sender.sendMessage(`Error training ${parts[1]}:\n${error}`))
+        const params = forceConfig 
+            ? { 
+                action: "train_single", 
+                credentials: JSON.stringify(studios[parts[1]]), 
+                forceConfig: true,
+                config: forceConfig
+            }
+            : { 
+                action: "train_single", 
+                credentials: JSON.stringify(studios[parts[1]]), 
+                forceNewRun: forceNewRun
+            }
     
-    await sender.sendMessage(`Starting training for ${parts[1]}...`)
+        await sender.sendMessage(`Starting training for ${parts[1]} (run ${i})...`)
+        
+        // Don't wait for answers
+        runPythonScript("./studioManager.py", params, true)
+            .then((result) => sender.sendMessage(`Started training ${parts[1]}:\n${result}`))
+            .catch((error) => sender.sendMessage(`Error training ${parts[1]}:\n${error}`))
+        
+        limit++
+        await new Promise(resolve => setTimeout(resolve, 4 * 60 * 60 * 1000))
+    }
 }
 
 async function handleTrainingStatCommand(sender, studioName) {
@@ -356,6 +378,17 @@ async function handleTrainMultipleCommand(sender, parts, text) {
     infiniteTraining = true
     while(infiniteTraining){
         for(let i = 0; i < studioNames.length; i++){
+
+            if(parts.includes("clean_start")) {
+                // Clean start, stop the studio first
+                const stopParams = { 
+                    action: "stop_single", 
+                    credentials: JSON.stringify(studios[studioNames[i]])
+                }
+                
+                runPythonScript("./studioManager.py", stopParams, true)
+            }
+
             const params = { 
                 action: "train_single", 
                 credentials: JSON.stringify(studios[studioNames[i]]), 
@@ -602,7 +635,12 @@ async function main() {
     // Check if CLI arguments are provided
     const args = process.argv.slice(2)
     
-    if (args.length > 0) {
+    if(args.length === 0){
+        console.log("Please provide a flag for running the app (--telegram or --cli)")
+        process.exit()
+    }
+
+    if (args[0] === "--cli") {
         // CLI mode
         console.log("Running in CLI mode...")
         const command = args.join(" ")
@@ -616,9 +654,16 @@ async function main() {
             console.error("Error executing command:", error)
             process.exit(1)
         }
-    } else {
+    } else if (args[0] === "--telegram") {
         // Telegram bot mode
         console.log("Running in Telegram bot mode...")
+
+        // CHeck if bot's token exists
+        if(!process.env.TELEGRAM_BOT_TOKEN) {
+            console.log("TELEGRAM_BOT_TOKEN environment variable not provided")
+            process.exit()
+        }
+
         const token = process.env.TELEGRAM_BOT_TOKEN
         const bot = new TelegramBot(token, { polling: true })
 
@@ -635,4 +680,8 @@ async function main() {
 }
 
 // Start the application
-main().catch(console.error)
+try {
+    main()
+} catch (error) {
+    console.log(`Ran into errors: ${error}`)
+}

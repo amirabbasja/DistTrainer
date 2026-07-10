@@ -126,33 +126,34 @@ def runCommand(credentials, command):
 @withCredentials
 def startTraining(credentials, forceNewRun = False, forceConfig = False, customConfig = ""):
     """
-    Starts a training bout by chekcing the status of the studio and running the command
+    Starts a training bout by checking the status of the studio and running the command
 
     Args:
         credentials (dict): Dictionary containing the studio credentials
         forceNewRun (bool, optional): If True, forces a new run by adding the --forcenewrun 
             flag to the command. Defaults to False.
         forceConfig (bool, optional): If true, conf.json file will be disregarded and a 
-            config has to be passde as the next arg
+            config has to be passed as the next arg
         customConfig (str, optional): The custom configuration, as a string (has to be 
             decodable by json.loads())
     """
     
-    # _status = getStatus(credentials)
-    # if(_status == "Stopping"):
-    #     while True:
-    #         print("Studio is stopping. Waiting for it to stop...")
-    #         _status = getStatus(credentials)
-    #         if(_status != "Stopping"):
-    #             break
-    #         time.sleep(30)
+    _status = getStatus(credentials)
+    print("DELETE: status:", _status)
+    if(_status == "Stopping"):
+        while True:
+            print("Studio is stopping. Waiting for it to stop...")
+            _status = getStatus(credentials)
+            if(_status != "Stopping"):
+                break
+            time.sleep(30)
     
-    # if(_status != "Stopped"):
-    #     try:
-    #         stopStudio(credentials)
-    #         time.sleep(10)
-    #     except:
-    #         pass
+    if(_status != "Stopped"):
+        try:
+            stopStudio(credentials)
+            time.sleep(10)
+        except:
+            pass
     
     try:
         # Start the studio
@@ -170,6 +171,7 @@ def startTraining(credentials, forceNewRun = False, forceConfig = False, customC
         if(customConfig != "" and json.loads(customConfig)):
             credentials["commandToRun"] = credentials["commandToRun"] + " --forceconfig" + " --config " + f"\'{customConfig}\'"
     print("command: ", credentials["commandToRun"])
+    
     # Run the command
     runCommand(credentials, credentials["commandToRun"])
 

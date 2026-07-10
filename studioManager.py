@@ -27,6 +27,6 @@ try:
     elif action == "check_duplicate_config":
         checkForDuplicateConfig(credentials, config)  
     else:
-        print("No valid action provided")
+        print(f"No valid action provided. Provided action {action}")
 except Exception as e:
     print("Faced an exception at studioManager: ", str(e))
