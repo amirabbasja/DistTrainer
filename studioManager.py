@@ -1,4 +1,5 @@
 import sys, os, json
+import traceback
 from utils import *
 
 try:
@@ -40,3 +41,4 @@ try:
         print(f"No valid action provided. Provided action {action}")
 except Exception as e:
     print("Faced an exception at studioManager: ", str(e))
+    traceback.print_exc()
