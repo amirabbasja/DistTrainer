@@ -138,12 +138,13 @@ function runPythonScript(loc, param, timedKill = false) {
         // Capture standard output
         pythonProcess.stdout.on('data', (data) => {
             output += data.toString()
-            // console.log(data.toString())
+            console.log("OUTPUT:", data.toString())
         })
 
         // Capture standard error
         pythonProcess.stderr.on('data', (data) => {
             errorOutput += data.toString()
+            console.log("ERROR:", data.toString())
         })
 
         // Handle process exit
@@ -164,6 +165,7 @@ function runPythonScript(loc, param, timedKill = false) {
 
         // Handle errors when starting the process
         pythonProcess.on('error', (err) => {
+            console.log("ERROR:", err.toString())
             if (!isResolved) {
                 if(timedKill){
                     clearTimeout(timeout)
@@ -293,14 +295,14 @@ async function handleTrainSingleCommand(sender, parts, text) {
     let i = 0
     while(i < limit){
         
-        if(parts.includes("clean_start")) {
-            // Clean start, stop the studio first
-            const stopParams = { 
-                action: "stop_single", 
-                credentials: JSON.stringify(studios[parts[1]])
-            }
-            await runPythonScript("./studioManager.py", stopParams, true)
-        }
+        // if(parts.includes("clean_start")) {
+        //     // Clean start, stop the studio first
+        //     const stopParams = { 
+        //         action: "stop_single", 
+        //         credentials: JSON.stringify(studios[parts[1]])
+        //     }
+        //     await runPythonScript("./studioManager.py", stopParams, true)
+        // }
 
         const params = forceConfig 
             ? { 

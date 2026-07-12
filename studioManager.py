@@ -12,20 +12,30 @@ try:
     config = params.get("config", "")
     keysToOverride = params.get("keysToOverride", "")
 
+    os.environ['LIGHTNING_API_KEY'] = credentials["apiKey"]
+    os.environ['LIGHTNING_USER_ID'] = credentials["userID"]
+    
+    _studio = Studio(
+        credentials["studioName"],
+        credentials["teamspaceName"],
+        user = credentials["user"],
+        create_ok = False
+    )
+
     if action == "stop_single":
-        stopStudio(credentials)
+        stopStudio(_studio, credentials)
     elif action == "start_single":
-        startStudio(credentials)
+        startStudio(_studio, credentials)
     elif action == "train_single":
-        startTraining(credentials, forceNewRun, forceConfig, config)
+        startTraining(_studio, credentials, forceNewRun, forceConfig, config)
     elif action == "status_single":
-        getStatus(credentials)
+        getStatus(_studio, credentials)
     elif action == "training_stat":
-        uploadTrainingImages(credentials, params["botToken"], params["chatId"])
+        uploadTrainingImages(_studio, credentials, params["botToken"], params["chatId"])
     elif action == "upload_results":
-        uploadAllResults(credentials, params["botToken"], params["chatId"])    
+        uploadAllResults(_studio, credentials, params["botToken"], params["chatId"])    
     elif action == "check_duplicate_config":
-        checkForDuplicateConfig(credentials, config)  
+        checkForDuplicateConfig(_studio, credentials, config)  
     else:
         print(f"No valid action provided. Provided action {action}")
 except Exception as e:

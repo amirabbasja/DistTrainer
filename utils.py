@@ -17,66 +17,49 @@ def withCredentials(func):
     return wrapper
 
 @withCredentials
-def stopStudio(credentials):
-    _studio = Studio(
-        credentials["studioName"],       # studio name
-        credentials["teamspaceName"],    # teamspace name
-        user = credentials["user"],
-        create_ok = False
-    )
-    
+def stopStudio(studio, credentials):
     try:
-        _studio.stop()
+        studio.stop()
         print(f"Success on stopping studio {credentials['user']}")
     except Exception as e:
         print(f"Error stopping studio. Error: {e}")
 
 @withCredentials
-def startStudio(credentials):
-    _studio = Studio(
-        credentials["studioName"],       # studio name
-        credentials["teamspaceName"],    # teamspace name
-        user = credentials["user"],
-        create_ok = False
-    )
-    
-    _studio.start()
+def startStudio(studio, credentials):
+    try:
+        studio.start()
+        print(f"Success on starting studio {credentials['user']}")
+    except Exception as e:
+        print(f"Error starting studio. Error: {e}")
 
 @withCredentials
-def getStatus(credentials):
-    _studio = Studio(
-        credentials["studioName"],       # studio name
-        credentials["teamspaceName"],    # teamspace name
-        user = credentials["user"],
-        create_ok = False
-    )
-    
+def getStatus(studio, credentials):
     try:
-        status = str(_studio.status)
-        print(status)
+        status = str(studio.status)
+        print("STUDIO STATUS:", status)
         return status
     except Exception as e:
         return f"Error fetching status for {credentials['user']}: {e}"
 
 @withCredentials
-def uploadTrainingImages(credentials, botToken, chatId):
+def uploadTrainingImages(studio, credentials, botToken, chatId):
     try:
-        runCommand(credentials, f"python '/teamspace/studios/this_studio/serverRunner/uploadLatestTrainingData.py' --bot-token '{botToken}' --chat-id '{chatId}'")
+        runCommand(studio, credentials, f"python '/teamspace/studios/this_studio/serverRunner/uploadLatestTrainingData.py' --bot-token '{botToken}' --chat-id '{chatId}'")
     except Exception as e:
         print(f"Error uploading training images. Error: {e}")
 
 @withCredentials
-def checkForDuplicateConfig(credentials, config):
+def checkForDuplicateConfig(studio, credentials, config):
 
     try:
         # Start the studio
-        startStudio(credentials)
+        startStudio(studio, credentials)
     except:
         pass
     time.sleep(10)
         
     try:
-        result = runCommand(credentials, f"python '/teamspace/studios/this_studio/resultAggregator.py' --check_duplicate_config '{config}'")
+        result = runCommand(studio, credentials, f"python '/teamspace/studios/this_studio/resultAggregator.py' --check_duplicate_config '{config}'")
         # print(f"python '/teamspace/studios/this_studio/resultAggregator.py' --check_duplicate_config '{config}'")
         print(result)
         return result
@@ -85,50 +68,44 @@ def checkForDuplicateConfig(credentials, config):
         return None
 
 @withCredentials
-def uploadAllResults(credentials, botToken, chatId):
-    _status = getStatus(credentials)
+def uploadAllResults(studio, credentials, botToken, chatId):
+    _status = getStatus(studio, credentials)
     if(_status == "Stopping"):
         while True:
             print("Studio is stopping. Waiting for it to stop...")
-            _status = getStatus(credentials)
+            _status = getStatus(studio, credentials)
             if(_status != "Stopping"):
                 break
             time.sleep(30)
     
     if(_status == "Stopped"):
-        startStudio(credentials)
+        startStudio(studio, credentials)
         time.sleep(10)
     
     try:
-        runCommand(credentials, f"python '/teamspace/studios/this_studio/resultAggregator.py' --upload_to_telegram")
+        runCommand(studio, credentials, f"python '/teamspace/studios/this_studio/resultAggregator.py' --upload_to_telegram")
     except Exception as e:
         print(f"Error uploading results. Error: {e}")
 
 @withCredentials
-def runCommand(credentials, command):
+def runCommand(studio, credentials, command):
     """
     Runs a designated studio with a specific command
     """
-    _studio = Studio(
-        credentials["studioName"],       # studio name
-        credentials["teamspaceName"],    # teamspace name
-        user = credentials["user"],
-        create_ok = False
-    )
-    
     try:
-        res = _studio.run(command)
+        res = studio.run(command)
         return res
     except Exception as e:
-        print("Error runnign command: "+ str(e))
+        print("Error running command: "+ str(e))
         return None
 
 @withCredentials
-def startTraining(credentials, forceNewRun = False, forceConfig = False, customConfig = ""):
+def startTraining(studio, credentials, forceNewRun = False, forceConfig = False, customConfig = ""):
     """
     Starts a training bout by checking the status of the studio and running the command
 
     Args:
+        studio (Studio): The studio instance
         credentials (dict): Dictionary containing the studio credentials
         forceNewRun (bool, optional): If True, forces a new run by adding the --forcenewrun 
             flag to the command. Defaults to False.
@@ -138,26 +115,26 @@ def startTraining(credentials, forceNewRun = False, forceConfig = False, customC
             decodable by json.loads())
     """
     
-    _status = getStatus(credentials)
+    _status = getStatus(studio, credentials)
     print("DELETE: status:", _status)
     if(_status == "Stopping"):
         while True:
             print("Studio is stopping. Waiting for it to stop...")
-            _status = getStatus(credentials)
+            _status = getStatus(studio, credentials)
             if(_status != "Stopping"):
                 break
             time.sleep(30)
     
     if(_status != "Stopped"):
         try:
-            stopStudio(credentials)
+            stopStudio(studio, credentials)
             time.sleep(10)
         except:
             pass
     
     try:
         # Start the studio
-        startStudio(credentials)
+        startStudio(studio, credentials)
     except:
         pass
     time.sleep(10)
@@ -173,5 +150,5 @@ def startTraining(credentials, forceNewRun = False, forceConfig = False, customC
     print("command: ", credentials["commandToRun"])
     
     # Run the command
-    runCommand(credentials, credentials["commandToRun"])
+    runCommand(studio, credentials, credentials["commandToRun"])
 
