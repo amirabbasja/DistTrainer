@@ -9,7 +9,10 @@ def _setCredentials(credentials):
 def withCredentials(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        credentials = args[0] if args else kwargs.get("credentials")
+        if len(args) > 1:
+            credentials = args[1]
+        else:
+            credentials = kwargs.get("credentials")
         if not credentials:
             raise ValueError(f"Missing credentials for {func.__name__}")
         _setCredentials(credentials)
@@ -117,20 +120,20 @@ def startTraining(studio, credentials, forceNewRun = False, forceConfig = False,
     
     _status = getStatus(studio, credentials)
     print("DELETE: status:", _status)
-    if(_status == "Stopping"):
-        while True:
-            print("Studio is stopping. Waiting for it to stop...")
-            _status = getStatus(studio, credentials)
-            if(_status != "Stopping"):
-                break
-            time.sleep(30)
+    # if(_status == "Stopping"):
+    #     while True:
+    #         print("Studio is stopping. Waiting for it to stop...")
+    #         _status = getStatus(studio, credentials)
+    #         if(_status != "Stopping"):
+    #             break
+    #         time.sleep(30)
     
-    if(_status != "Stopped"):
-        try:
-            stopStudio(studio, credentials)
-            time.sleep(10)
-        except:
-            pass
+    # if(_status != "Stopped"):
+    #     try:
+    #         stopStudio(studio, credentials)
+    #         time.sleep(10)
+    #     except:
+    #         pass
     
     try:
         # Start the studio
